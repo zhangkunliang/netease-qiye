@@ -121,20 +121,27 @@ public class EmailService {
      * 统计邮件标题中含有“日报”，且没有发送邮件的人员
      */
     public List<String> getEmployeesWhoDidNotSendDailyReport() throws MessagingException {
-        LocalDateTime startOfDay = LocalDateTime.now().minusDays(1).withHour(6).withMinute(0).withSecond(0);
-        LocalDateTime endOfDay = LocalDateTime.now().withHour(6).withMinute(0).withSecond(0);
+        LocalDateTime startOfDay = LocalDateTime.now().minusDays(1).withHour(9).withMinute(1).withSecond(0);
+        LocalDateTime endOfDay = LocalDateTime.now().withHour(9).withMinute(0).withSecond(0);
         long startOfDayTimeStamp = startOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         long endOfDayTimeStamp = endOfDay.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
         // 以邮件标题含有“日报”为条件进行过滤，统计当日已发送日报的员工
         List<Message> messages = messageMapper.selectList(new QueryWrapper<>()).stream()
                 .filter(message -> Long.parseLong(message.getSentDate()) < endOfDayTimeStamp)
                 .filter(message -> Long.parseLong(message.getSentDate()) > startOfDayTimeStamp)
-                .filter(message -> message.getSubject().contains("日报"))
+                .filter(message -> message.getSubject().contains("日报") || message.getSubject().contains("总结") || message.getSubject().contains("工作"))
                 .collect(Collectors.toList());
-        List<String> employeesWhoSentReport = messages.stream()
-                .map(Message::getFromWho)
-                .collect(Collectors.toList());
+
         List<String> allEmployees = getAllEmployees(needSendEpy);
+        List<String> employeesWhoSentReport = messages.stream()
+                .map(Message::getFromWho).collect(Collectors.toList()).stream()
+                .flatMap(email->allEmployees.stream().filter(employ->{
+                    int start = email.indexOf('<') + 1;
+                    int end = email.indexOf('>');
+                    String emailAddress = email.substring(start, end);
+                    return emailAddress.contains(employ);
+                }))
+                .collect(Collectors.toList());
         // 返回没有发送日报的员工
         List<String> report = allEmployees.stream()
                 .filter(email -> !employeesWhoSentReport.contains(email))
